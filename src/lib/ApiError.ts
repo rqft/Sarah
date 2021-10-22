@@ -40,4 +40,3 @@ export class ApiError {
     return this.stack.split("\n");
   }
 }
-ApiError.prototype.raw.stack;
