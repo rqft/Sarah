@@ -1,6 +1,6 @@
 import { Snowflake } from "detritus-client/lib/utils";
-import { Client } from "./Client";
-export class AuditLogEntry extends Client {
+import { ClientMixin } from "./Client";
+export class AuditLogEntry extends ClientMixin {
   public raw: discord.AuditLogEntry.AnyAction | discord.AuditLogEntry;
   public parent: discord.AuditLogEntry;
 
@@ -31,7 +31,7 @@ export class AuditLogEntry extends Client {
     return this.user.id;
   }
   async getExecutor() {
-    return (await this.clientGuild()).getMember(this.userId);
+    return (await this.client.guild()).getMember(this.userId);
   }
   get id() {
     return this.raw.id;

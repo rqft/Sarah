@@ -1,20 +1,29 @@
+export class ClientMixin {
+  client: Client;
+  guild() {
+    return this.client.guild();
+  }
+  _isUnused() {
+    throw new Error("This function is unimplemented.");
+  }
+}
 export class Client {
-  get clientUserId() {
-    return discord.getBotId();
-  }
-  get clientGuildId() {
-    return discord.getGuildId();
-  }
-  get client() {
+  get raw() {
     return discord;
   }
-  async clientGuild() {
-    return this.client.getGuild();
+  get userId() {
+    return this.raw.getBotId();
   }
-  async clientUser() {
-    return this.client.getUser(this.clientGuildId);
+  get guildId() {
+    return this.raw.getGuildId();
   }
-  async clientMember() {
-    return (await this.clientGuild()).getMember(this.clientUserId);
+  async guild() {
+    return this.raw.getGuild();
+  }
+  async user() {
+    return this.raw.getUser(this.userId);
+  }
+  async member() {
+    return (await this.guild()).getMember(this.userId);
   }
 }
