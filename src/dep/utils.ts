@@ -310,11 +310,11 @@ export const DiscordRegex = {
   [DiscordRegexNames.TEXT_UNDERLINE]: /__([\s\S]+?)__/g,
   [DiscordRegexNames.TEXT_URL]: /((?:https?):\/\/[^\s<]+[^<.,:;"'\]\s])/g,
 };
-export function normalize(object: { [key: string]: any }) {
+export function normalize(object: object) {
   for (const key in object) {
     object[key] = key;
   }
-  return Object.freeze(object);
+  return object;
 }
 
 export function guildIdToShardId(

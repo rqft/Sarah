@@ -1,4 +1,4 @@
-import { Snowflake } from "detritus-client/lib/utils";
+import { timestamp } from "../dep/Snowflake";
 import { ClientMixin } from "./Client";
 export class AuditLogEntry extends ClientMixin {
   public raw: discord.AuditLogEntry.AnyAction | discord.AuditLogEntry;
@@ -40,6 +40,6 @@ export class AuditLogEntry extends ClientMixin {
     return new Date(this.createdAtUnix);
   }
   get createdAtUnix() {
-    return Snowflake.timestamp(this.raw.id);
+    return timestamp(this.raw.id);
   }
 }
