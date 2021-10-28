@@ -3,6 +3,7 @@ export type CallbackFn<T, R = unknown> = (
   index: number,
   list: List<T>
 ) => R;
+export type ListPromise<T> = Promise<List<T>>;
 export class List<T> {
   [Symbol.iterator]: () => Iterator<T>;
   private _array: Array<T>;
@@ -18,10 +19,10 @@ export class List<T> {
     return entries.map(this.get);
   }
   public fetch(value: T) {
-    return this.find(v => v === value)
+    return this.find((v) => v === value);
   }
   public fetchMany(...values: Array<T>) {
-    return values.map(this.fetch)
+    return values.map(this.fetch);
   }
   public set(index: number, obj: T) {
     this._array[index] = obj;

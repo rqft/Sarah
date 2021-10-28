@@ -1,11 +1,26 @@
 import { Structures } from "detritus-client";
 import { DiscordEndpoints } from "../dep/endpoints";
-import { GuildFeatures, Permissions } from "../dep/globals";
-import { List } from "../dep/List";
+import {
+  DEFAULT_MAX_MEMBERS,
+  DEFAULT_MAX_PRESENCES,
+  DEFAULT_MAX_VIDEO_CHANNEL_USERS,
+  GuildFeatures,
+  GuildNSFWLevels,
+  LocalesText,
+  MAX_ATTACHMENT_SIZE,
+  MAX_BITRATE,
+  MAX_EMOJI_SLOTS,
+  MAX_EMOJI_SLOTS_MORE,
+  Permissions,
+  PremiumGuildLimits,
+  SystemChannelFlags,
+} from "../dep/globals";
+import { List, ListPromise } from "../dep/List";
 import { checkPermissions, PermissionChecks } from "../dep/Permissions";
 import { RequestTypes } from "../dep/RequestTypes";
 import { timestamp } from "../dep/Snowflake";
-import { addQuery, getFormatFromHash, UrlQuery } from "../dep/utils";
+import { guildIdToShardId, UrlQuery } from "../dep/utils";
+import { AuditLogEntry } from "./AuditLogEntry";
 import { Structure } from "./Client";
 export interface BeginGuildPrune {
   computePruneCount?: boolean;
@@ -28,10 +43,6 @@ export class Guild extends Structure {
     }
     return this.name.replace(/\w+/g, (match) => match[0]).replace(/\s/g, "");
   }
-  get name() {
-    return this.raw.name;
-  }
-
   get afkChannelId() {
     return this.raw.afkChannelId;
   }
@@ -53,12 +64,11 @@ export class Guild extends Structure {
     return this.bannerUrlFormat();
   }
   public bannerUrlFormat(format?: string | null, query?: UrlQuery) {
-    if (!this.banner) return null;
-    const hash = this.banner;
-    format = getFormatFromHash(hash, format);
-    return addQuery(
-      DiscordEndpoints.CDN.URL +
-      DiscordEndpoints.CDN.BANNER(this.id, hash, format),
+    return this.hashUrl(
+      DiscordEndpoints.CDN.BANNER.name,
+      this.id,
+      this.banner,
+      format,
       query
     );
   }
@@ -83,7 +93,7 @@ export class Guild extends Structure {
       if (member) {
         memberId = member.user.id;
       } else {
-        if (!this.client.user) {
+        if (!this.client.userId) {
           throw new Error("Provide a member object please");
         }
         memberId = this.client.userId;
@@ -114,10 +124,6 @@ export class Guild extends Structure {
   get id() {
     return this.raw.id;
   }
-  get ownerId() {
-    return this.raw.ownerId;
-  }
-
   get canHaveBanner() {
     return this.isVerified || this.hasFeature(GuildFeatures.BANNER);
   }
@@ -166,9 +172,6 @@ export class Guild extends Structure {
   }
   get features() {
     return List.from(this.raw.features as unknown as Array<GuildFeatures>);
-  }
-  async fetchApplications() {
-    return this._isUnused();
   }
   async createBan(userId: string, options: RequestTypes.CreateGuildBan) {
     await this.raw.createBan(userId, options);
@@ -254,12 +257,11 @@ export class Guild extends Structure {
     return this.discoverySplashUrlFormat();
   }
   discoverySplashUrlFormat(format?: string, query?: UrlQuery) {
-    if (!this.discoverySplash) return null;
-    const hash = this.discoverySplash;
-    format = getFormatFromHash(hash, format);
-    return addQuery(
-      DiscordEndpoints.CDN.URL +
-      DiscordEndpoints.CDN.BANNER(this.id, hash, format),
+    return this.hashUrl(
+      DiscordEndpoints.CDN.GUILD_SPLASH.name,
+      this.id,
+      this.discoverySplash,
+      format,
       query
     );
   }
@@ -331,127 +333,343 @@ export class Guild extends Structure {
   get embedEnabled() {
     return false;
   }
-  async fetchEmojis() {
-    return this.raw.getEmojis();
-  }
   get explicitContentFilter() {
     return this.raw.explicitContentFilter;
   }
 
   async fetchApplications() {
-    return this._isUnused()
-  };
+    return this._isUnused();
+  }
   async fetchAuditLogs(options: RequestTypes.FetchGuildAuditLogs) {
     let logs = new List<AuditLogEntry>();
     for await (const i of this.raw.iterAuditLogs(options)) {
-      logs.add(new AuditLogEntry(i))
+      logs.add(new AuditLogEntry(i));
     }
-    return logs
+    return logs;
+  }
+  async fetchBan(userId: string) {
+    return this.raw.getBan(userId);
   }
   async fetchBans() {
-    return List.from(await this.raw.getBans())
+    return List.from(await this.raw.getBans());
   }
   async fetchChannels() {
     return List.from((await this.raw.getChannels()) as discord.Channel[]);
   }
-  async fetchAfkChannel() {
-    return this.raw.getChannel(this.afkChannelId);
+  async fetchChannel(channelId: string) {
+    return this.raw.getChannel(channelId);
   }
-  async fetchAllTextChannels() {
+  async fetchAfkChannel() {
+    return this.fetchChannel(this.afkChannelId);
+  }
+  async fetchAllTextChannels(): ListPromise<
+    discord.DmChannel | discord.GuildNewsChannel | discord.GuildTextChannel
+  > {
     return (await this.fetchChannels()).filter(
       (v) =>
         v instanceof discord.DmChannel ||
         v instanceof discord.GuildNewsChannel ||
         v instanceof discord.GuildTextChannel
-    ) as List<
-      discord.DmChannel | discord.GuildNewsChannel | discord.GuildTextChannel
-    >;
-  }
-  async fetchAllVoiceChannels() {
-    return (await this.fetchChannels()).filter(
-      (v) => v instanceof discord.GuildVoiceChannel
     );
   }
-  async fetchCategoryChannels() {
+  async fetchAllVoiceChannels(): ListPromise<
+    discord.GuildVoiceChannel | discord.GuildStageVoiceChannel
+  > {
+    return (await this.fetchChannels()).filter(
+      (v) =>
+        v instanceof discord.GuildVoiceChannel ||
+        v instanceof discord.GuildStageVoiceChannel
+    );
+  }
+  async fetchCategoryChannels(): ListPromise<discord.GuildCategory> {
     return (await this.fetchChannels()).filter(
       (v) => v instanceof discord.GuildCategory
     );
   }
-  async fetchTextChannels() {
+  async fetchTextChannels(): ListPromise<discord.GuildTextChannel> {
     return (await this.fetchAllTextChannels()).filter(
       (v) => v instanceof discord.GuildTextChannel
     );
   }
-  async fetchStoreChannels() {
+  async fetchStoreChannels(): ListPromise<discord.GuildStoreChannel> {
     return (await this.fetchChannels()).filter(
       (v) => v instanceof discord.GuildStoreChannel
     );
   }
-  async fetchVoiceChannels() {
-    return this.fetchAllVoiceChannels();
+  async fetchVoiceChannels(): ListPromise<discord.GuildVoiceChannel> {
+    return (await this.fetchAllVoiceChannels()).filter(
+      (v) => v instanceof discord.GuildVoiceChannel
+    );
+  }
+  async fetchStageVoiceChannels(): ListPromise<discord.GuildStageVoiceChannel> {
+    return (await this.fetchAllVoiceChannels()).filter(
+      (v) => v instanceof discord.GuildStageVoiceChannel
+    );
   }
   async fetchEmbed() {
-    return this._isUnused()
+    return this._isUnused();
   }
   async fetchEmoji(emojiId: string) {
-    return this.raw.getEmoji(emojiId)
+    return this.raw.getEmoji(emojiId);
   }
   async fetchEmojis() {
-    return List.from(await this.raw.getEmojis())
+    return List.from(await this.raw.getEmojis());
   }
   async fetchInvites() {
-    return List.from(await this.raw.getInvites())
+    return List.from(await this.raw.getInvites());
   }
   async fetchIntegrations() {
-    return this._isUnused()
+    return this._isUnused();
   }
   async fetchMember(userId: string) {
-    return this.raw.getMember(userId)
+    return this.raw.getMember(userId);
   }
-  async fetchMembers(options: discord.Guild.IIterMembersOptions) {
-    let members = new List<discord.GuildMember>()
+  async fetchMembers(options?: discord.Guild.IIterMembersOptions) {
+    let members = new List<discord.GuildMember>();
     for await (const i of this.raw.iterMembers(options)) {
-      members.add(i)
+      members.add(i);
     }
-    return members
+    return members;
   }
   async fetchMembersSearch(options?: RequestTypes.FetchGuildMembersSearch) {
-    return (await this.fetchMembers()).filter((value, index) => index < (options.limit ?? Infinity))
+    return (await this.fetchMembers()).filter(
+      (value, index) => index < (options.limit ?? Infinity)
+    );
   }
   async fetchPremiumSubscriptions() {
-    return (await this.fetchMembers()).filter(value => value.premiumSince)
+    return (await this.fetchMembers()).filter((value) => value.premiumSince);
   }
   async fetchPruneCount(options?: RequestTypes.FetchGuildPruneCount) {
-    return this.raw.previewPrune(options)
+    return this.raw.previewPrune(options);
   }
   async fetchRoles() {
-    return List.from(await this.raw.getRoles())
+    return List.from(await this.raw.getRoles());
   }
   async fetchSticker(stickerId: string) {
-    return (await this.fetchStickers()).fetch(stickerId)
+    return (await this.fetchStickers()).fetch(stickerId);
   }
   async fetchStickers() {
-    return new List()
+    return new List();
   }
   async fetchTemplates() {
-    return new List()
+    return new List();
   }
   async fetchVanityUrl() {
-    return this.raw.vanityUrlCode
+    return this.raw.vanityUrlCode;
   }
   async fetchVoiceRegions() {
-    return new List()
+    return new List();
   }
   async fetchWebhook(webhookId: string) {
-    return (await this.fetchWebhooks()).fetch(webhookId)
+    return (await this.fetchWebhooks()).fetch(webhookId);
   }
   async fetchWebhooks() {
-    return new List()
+    return new List();
   }
   async fetchWidget() {
-    return this._isUnused()
+    return this._isUnused();
+  }
+  get hasMetadata() {
+    return false;
+  }
+  get systemChannelFlags() {
+    return 0;
+  }
+  hasSystemChannelFlag(flag: number) {
+    return (this.systemChannelFlags & flag) === flag;
+  }
+  get hasSystemChannelSuppressJoinNotifications() {
+    return this.hasSystemChannelFlag(
+      SystemChannelFlags.SUPPRESS_JOIN_NOTIFICATIONS
+    );
+  }
+  get hasSystemChannelSuppressPremiumNotifications() {
+    return this.hasSystemChannelFlag(
+      SystemChannelFlags.SUPPRESS_PREMIUM_SUBSCRIPTIONS
+    );
+  }
+  get icon() {
+    return this.raw.icon;
+  }
+  get iconUrl() {
+    return this.iconUrlFormat();
+  }
+  iconUrlFormat(format?: string, query?: UrlQuery) {
+    return this.hashUrl(
+      DiscordEndpoints.CDN.GUILD_ICON.name,
+      this.id,
+      this.icon,
+      format,
+      query
+    );
+  }
+  get isPartial() {
+    return false;
+  }
+  get isReady() {
+    return true;
+  }
+  async join(options: RequestTypes.JoinGuild) {
+    return this._isUnused();
+  }
+  async fetchSelfJoinedAt() {
+    return +(await this.fetchSelfJoinedAtUnix());
+  }
+  async fetchSelfJoinedAtUnix() {
+    return +new Date((await this.client.member()).joinedAt);
+  }
+  get jumpLink() {
+    return DiscordEndpoints.Routes.URL + DiscordEndpoints.Routes.GUILD(this.id);
+  }
+  get large() {
+    return this.raw.memberCount > DEFAULT_MAX_MEMBERS;
+  }
+  get lazy() {
+    return false;
+  }
+  async leave() {
+    if (this.can(Permissions.KICK_MEMBERS)) {
+      return (await this.client.member()).kick();
+    }
+    return this._isUnused();
+  }
+  get left() {
+    return false;
+  }
+  get maxAttachmentSize() {
+    const max = MAX_ATTACHMENT_SIZE;
+    return Math.max(max, PremiumGuildLimits[this.raw.premiumTier].attachment);
+  }
+  get maxBitrate() {
+    const max = MAX_BITRATE;
+    return Math.max(max, PremiumGuildLimits[this.raw.premiumTier].bitrate);
+  }
+  get maxEmojis() {
+    const max = this.hasFeature(GuildFeatures.MORE_EMOJI)
+      ? MAX_EMOJI_SLOTS_MORE
+      : MAX_EMOJI_SLOTS;
+    return Math.max(max, PremiumGuildLimits[this.raw.premiumTier].emoji);
+  }
+  get maxMembers() {
+    // if (this.raw.maxMembers) return this.raw.maxMembers
+    return DEFAULT_MAX_MEMBERS;
+  }
+  get maxPresences() {
+    if (this.raw.maxPresences) return this.raw.maxPresences;
+    return DEFAULT_MAX_PRESENCES;
+  }
+  get maxVideoChannelUsers() {
+    // if (this.raw.maxMembers) return this.raw.maxMembers
+    return DEFAULT_MAX_VIDEO_CHANNEL_USERS;
+  }
+  async fetchMe() {
+    return this.client.member();
+  }
+  get memberCount() {
+    return this.raw.memberCount;
+  }
+  get mfaLevel() {
+    return this.raw.mfaLevel;
+  }
+  get name() {
+    return this.raw.name;
+  }
+  async isNsfw() {
+    return (await this.fetchTextChannels()).every((v) => v.nsfw);
+  }
+  async getNsfwLevel(): Promise<GuildNSFWLevels> {
+    let nsfw = await this.isNsfw();
+    if (nsfw) {
+      return GuildNSFWLevels.EXPLICIT;
+    }
+    return GuildNSFWLevels.SAFE;
+  }
+  get ownerId() {
+    return this.raw.ownerId;
+  }
+  async fetchOwner() {
+    return this.fetchMember(this.ownerId);
+  }
+  get preferredLocale() {
+    return this.raw.preferredLocale;
+  }
+  get preferredLocaleText() {
+    return LocalesText[this.preferredLocale] ?? this.preferredLocale;
+  }
+  get premiumSubscriptionCount() {
+    return this.raw.premiumSubscriptionCount;
+  }
+  get premiumTier() {
+    return this.raw.premiumTier;
+  }
+  async fetchPresences(options?: discord.Guild.IIterMembersOptions) {
+    let presences = new List<discord.Presence>();
+    for await (let i of this.raw.iterMembers(options)) {
+      presences.add(await i.getPresence());
+    }
+  }
+  async fetchPublicUpdatesChannel() {
+    return this.fetchChannel(this.publicUpdatesChannelId);
+  }
+  get publicUpdatesChannelId() {
+    return "";
+  }
+  get region(): string {
+    return this.raw.region;
+  }
+  async removeBan(userId: string) {
+    let payload = await this.fetchBan(userId);
+    this.raw.deleteBan(userId);
+    return payload;
+  }
+  async removeMember(userId: string, options?: RequestTypes.RemoveGuildMember) {
+    let payload = await this.fetchMember(userId);
+    payload.kick();
+    return payload;
+  }
+  async removeMemberRole(
+    userId: string,
+    roleId: string,
+    options?: RequestTypes.RemoveGuildMemberRole
+  ) {
+    let payload = await this.fetchMember(userId);
+    payload.removeRole(roleId);
+    return payload;
+  }
+  get rulesChannelId() {
+    return "";
+  }
+  async fetchRulesChannel() {
+    return this.fetchChannel(this.rulesChannelId);
+  }
+  get shardId() {
+    return guildIdToShardId(this.id);
+  }
+  get splash() {
+    return this.splash;
+  }
+  get splashUrl() {
+    return this.splashUrlFormat;
+  }
+  splashUrlFormat(format?: string, query?: UrlQuery) {
+    return this.hashUrl(
+      DiscordEndpoints.CDN.GUILD_SPLASH.name,
+      this.id,
+      this.splash,
+      format,
+      query
+    );
+  }
+  get systemChannelId() {
+    return this.raw.systemChannelId;
+  }
+  async fetchSystemChannel() {
+    return await this.fetchChannel(this.systemChannelId);
+  }
+  get vanityUrlCode() {
+    return this.raw.vanityUrlCode;
   }
 }
 discord.Guild.prototype.beginPrune;
 Guild.prototype.bannerUrlFormat;
-Structures.Guild.prototype.fetchApplications;
+Structures.Guild.prototype.verificationLevel;

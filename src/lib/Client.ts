@@ -1,3 +1,6 @@
+import { DiscordEndpoints } from "../dep/endpoints";
+import { addQuery, getFormatFromHash, UrlQuery } from "../dep/utils";
+
 export class ClientMixin {
   client: Client;
   guild() {
@@ -5,11 +8,32 @@ export class ClientMixin {
   }
 }
 export class Structure extends ClientMixin {
-  isUnused(context?: discord.Message, options?: discord.Message.IOutgoingMessageOptions) {
+  _isUnused(
+    context?: discord.Message,
+    options?: discord.Message.IOutgoingMessageOptions
+  ) {
     if (context) {
-      return context.reply(Object.assign({ content: "❌ This method is unused" }, options))
+      return context.reply(
+        Object.assign({ content: "❌ This method is unused" }, options)
+      );
     }
-    throw new Error("This method is unused")
+    throw new Error("This method is unused");
+  }
+  hashUrl(
+    endpoint: string,
+    id: string,
+    hash?: string,
+    format?: string,
+    query?: UrlQuery
+  ) {
+    if (!hash) return null;
+
+    format = getFormatFromHash(hash, format);
+    return addQuery(
+      DiscordEndpoints.CDN.URL +
+        DiscordEndpoints.CDN[endpoint](id, hash, format),
+      query
+    );
   }
 }
 export class Client {
