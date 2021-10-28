@@ -6,14 +6,14 @@ import { checkPermissions, PermissionChecks } from "../dep/Permissions";
 import { RequestTypes } from "../dep/RequestTypes";
 import { timestamp } from "../dep/Snowflake";
 import { addQuery, getFormatFromHash, UrlQuery } from "../dep/utils";
-import { ClientMixin } from "./Client";
+import { Structure } from "./Client";
 export interface BeginGuildPrune {
   computePruneCount?: boolean;
   days?: number;
   includeRoles?: Array<string>;
   reason?: string;
 }
-export class Guild extends ClientMixin {
+export class Guild extends Structure {
   public raw: discord.Guild;
   constructor(raw: discord.Guild) {
     super();
@@ -31,51 +31,14 @@ export class Guild extends ClientMixin {
   get name() {
     return this.raw.name;
   }
-  async fetchAfkChannel() {
-    return this.raw.getChannel(this.afkChannelId);
-  }
+
   get afkChannelId() {
     return this.raw.afkChannelId;
   }
   get afkTimeout() {
     return this.raw.afkTimeout;
   }
-  async fetchChannels() {
-    return List.from((await this.raw.getChannels()) as discord.Channel[]);
-  }
-  async fetchAllTextChannels() {
-    return (await this.fetchChannels()).filter(
-      (v) =>
-        v instanceof discord.DmChannel ||
-        v instanceof discord.GuildNewsChannel ||
-        v instanceof discord.GuildTextChannel
-    ) as List<
-      discord.DmChannel | discord.GuildNewsChannel | discord.GuildTextChannel
-    >;
-  }
-  async fetchAllVoiceChannels() {
-    return (await this.fetchChannels()).filter(
-      (v) => v instanceof discord.GuildVoiceChannel
-    );
-  }
-  async fetchCategoryChannels() {
-    return (await this.fetchChannels()).filter(
-      (v) => v instanceof discord.GuildCategory
-    );
-  }
-  async fetchTextChannels() {
-    return (await this.fetchAllTextChannels()).filter(
-      (v) => v instanceof discord.GuildTextChannel
-    );
-  }
-  async fetchStoreChannels() {
-    return (await this.fetchChannels()).filter(
-      (v) => v instanceof discord.GuildStoreChannel
-    );
-  }
-  async fetchVoiceChannels() {
-    return this.fetchAllVoiceChannels;
-  }
+
   get applicationCommandCount() {
     return this._isUnused();
   }
@@ -95,7 +58,7 @@ export class Guild extends ClientMixin {
     format = getFormatFromHash(hash, format);
     return addQuery(
       DiscordEndpoints.CDN.URL +
-        DiscordEndpoints.CDN.BANNER(this.id, hash, format),
+      DiscordEndpoints.CDN.BANNER(this.id, hash, format),
       query
     );
   }
@@ -296,7 +259,7 @@ export class Guild extends ClientMixin {
     format = getFormatFromHash(hash, format);
     return addQuery(
       DiscordEndpoints.CDN.URL +
-        DiscordEndpoints.CDN.BANNER(this.id, hash, format),
+      DiscordEndpoints.CDN.BANNER(this.id, hash, format),
       query
     );
   }
@@ -375,7 +338,119 @@ export class Guild extends ClientMixin {
     return this.raw.explicitContentFilter;
   }
 
-  async;
+  async fetchApplications() {
+    return this._isUnused()
+  };
+  async fetchAuditLogs(options: RequestTypes.FetchGuildAuditLogs) {
+    let logs = new List<AuditLogEntry>();
+    for await (const i of this.raw.iterAuditLogs(options)) {
+      logs.add(new AuditLogEntry(i))
+    }
+    return logs
+  }
+  async fetchBans() {
+    return List.from(await this.raw.getBans())
+  }
+  async fetchChannels() {
+    return List.from((await this.raw.getChannels()) as discord.Channel[]);
+  }
+  async fetchAfkChannel() {
+    return this.raw.getChannel(this.afkChannelId);
+  }
+  async fetchAllTextChannels() {
+    return (await this.fetchChannels()).filter(
+      (v) =>
+        v instanceof discord.DmChannel ||
+        v instanceof discord.GuildNewsChannel ||
+        v instanceof discord.GuildTextChannel
+    ) as List<
+      discord.DmChannel | discord.GuildNewsChannel | discord.GuildTextChannel
+    >;
+  }
+  async fetchAllVoiceChannels() {
+    return (await this.fetchChannels()).filter(
+      (v) => v instanceof discord.GuildVoiceChannel
+    );
+  }
+  async fetchCategoryChannels() {
+    return (await this.fetchChannels()).filter(
+      (v) => v instanceof discord.GuildCategory
+    );
+  }
+  async fetchTextChannels() {
+    return (await this.fetchAllTextChannels()).filter(
+      (v) => v instanceof discord.GuildTextChannel
+    );
+  }
+  async fetchStoreChannels() {
+    return (await this.fetchChannels()).filter(
+      (v) => v instanceof discord.GuildStoreChannel
+    );
+  }
+  async fetchVoiceChannels() {
+    return this.fetchAllVoiceChannels();
+  }
+  async fetchEmbed() {
+    return this._isUnused()
+  }
+  async fetchEmoji(emojiId: string) {
+    return this.raw.getEmoji(emojiId)
+  }
+  async fetchEmojis() {
+    return List.from(await this.raw.getEmojis())
+  }
+  async fetchInvites() {
+    return List.from(await this.raw.getInvites())
+  }
+  async fetchIntegrations() {
+    return this._isUnused()
+  }
+  async fetchMember(userId: string) {
+    return this.raw.getMember(userId)
+  }
+  async fetchMembers(options: discord.Guild.IIterMembersOptions) {
+    let members = new List<discord.GuildMember>()
+    for await (const i of this.raw.iterMembers(options)) {
+      members.add(i)
+    }
+    return members
+  }
+  async fetchMembersSearch(options?: RequestTypes.FetchGuildMembersSearch) {
+    return (await this.fetchMembers()).filter((value, index) => index < (options.limit ?? Infinity))
+  }
+  async fetchPremiumSubscriptions() {
+    return (await this.fetchMembers()).filter(value => value.premiumSince)
+  }
+  async fetchPruneCount(options?: RequestTypes.FetchGuildPruneCount) {
+    return this.raw.previewPrune(options)
+  }
+  async fetchRoles() {
+    return List.from(await this.raw.getRoles())
+  }
+  async fetchSticker(stickerId: string) {
+    return (await this.fetchStickers()).fetch(stickerId)
+  }
+  async fetchStickers() {
+    return new List()
+  }
+  async fetchTemplates() {
+    return new List()
+  }
+  async fetchVanityUrl() {
+    return this.raw.vanityUrlCode
+  }
+  async fetchVoiceRegions() {
+    return new List()
+  }
+  async fetchWebhook(webhookId: string) {
+    return (await this.fetchWebhooks()).fetch(webhookId)
+  }
+  async fetchWebhooks() {
+    return new List()
+  }
+  async fetchWidget() {
+    return this._isUnused()
+  }
 }
 discord.Guild.prototype.beginPrune;
 Guild.prototype.bannerUrlFormat;

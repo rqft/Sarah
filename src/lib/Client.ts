@@ -3,8 +3,13 @@ export class ClientMixin {
   guild() {
     return this.client.guild();
   }
-  _isUnused() {
-    throw new Error("This function is unimplemented.");
+}
+export class Structure extends ClientMixin {
+  isUnused(context?: discord.Message, options?: discord.Message.IOutgoingMessageOptions) {
+    if (context) {
+      return context.reply(Object.assign({ content: "❌ This method is unused" }, options))
+    }
+    throw new Error("This method is unused")
   }
 }
 export class Client {

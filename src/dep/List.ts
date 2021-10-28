@@ -17,6 +17,12 @@ export class List<T> {
   public getMany(...entries: Array<number>) {
     return entries.map(this.get);
   }
+  public fetch(value: T) {
+    return this.find(v => v === value)
+  }
+  public fetchMany(...values: Array<T>) {
+    return values.map(this.fetch)
+  }
   public set(index: number, obj: T) {
     this._array[index] = obj;
     return this;
