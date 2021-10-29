@@ -1,5 +1,4 @@
-import { Structures } from "detritus-client";
-import { DiscordEndpoints } from "../dep/endpoints";
+import { DiscordEndpoints, replacePathParameters } from "../dep/endpoints";
 import {
   DEFAULT_MAX_MEMBERS,
   DEFAULT_MAX_PRESENCES,
@@ -15,11 +14,11 @@ import {
   PremiumGuildLimits,
   SystemChannelFlags,
 } from "../dep/globals";
-import { List, ListPromise } from "../dep/List";
+import { List } from "../dep/List";
 import { checkPermissions, PermissionChecks } from "../dep/Permissions";
 import { RequestTypes } from "../dep/RequestTypes";
 import { timestamp } from "../dep/Snowflake";
-import { guildIdToShardId, UrlQuery } from "../dep/utils";
+import { addQuery, guildIdToShardId, UrlQuery } from "../dep/utils";
 import { AuditLogEntry } from "./AuditLogEntry";
 import { Structure } from "./Client";
 export interface BeginGuildPrune {
@@ -64,7 +63,7 @@ export class Guild extends Structure {
     return this.bannerUrlFormat();
   }
   public bannerUrlFormat(format?: string | null, query?: UrlQuery) {
-    return this.hashUrl(
+    return this.hashCdnUrl(
       DiscordEndpoints.CDN.BANNER.name,
       this.id,
       this.banner,
@@ -257,7 +256,7 @@ export class Guild extends Structure {
     return this.discoverySplashUrlFormat();
   }
   discoverySplashUrlFormat(format?: string, query?: UrlQuery) {
-    return this.hashUrl(
+    return this.hashCdnUrl(
       DiscordEndpoints.CDN.GUILD_SPLASH.name,
       this.id,
       this.discoverySplash,
@@ -362,49 +361,47 @@ export class Guild extends Structure {
   async fetchAfkChannel() {
     return this.fetchChannel(this.afkChannelId);
   }
-  async fetchAllTextChannels(): ListPromise<
-    discord.DmChannel | discord.GuildNewsChannel | discord.GuildTextChannel
-  > {
+  async fetchAllTextChannels() {
     return (await this.fetchChannels()).filter(
       (v) =>
         v instanceof discord.DmChannel ||
         v instanceof discord.GuildNewsChannel ||
         v instanceof discord.GuildTextChannel
-    );
+    ) as List<
+      discord.DmChannel | discord.GuildNewsChannel | discord.GuildTextChannel
+    >;
   }
-  async fetchAllVoiceChannels(): ListPromise<
-    discord.GuildVoiceChannel | discord.GuildStageVoiceChannel
-  > {
+  async fetchAllVoiceChannels() {
     return (await this.fetchChannels()).filter(
       (v) =>
         v instanceof discord.GuildVoiceChannel ||
         v instanceof discord.GuildStageVoiceChannel
-    );
+    ) as List<discord.GuildVoiceChannel | discord.GuildStageVoiceChannel>;
   }
-  async fetchCategoryChannels(): ListPromise<discord.GuildCategory> {
+  async fetchCategoryChannels() {
     return (await this.fetchChannels()).filter(
       (v) => v instanceof discord.GuildCategory
-    );
+    ) as List<discord.GuildCategory>;
   }
-  async fetchTextChannels(): ListPromise<discord.GuildTextChannel> {
+  async fetchTextChannels() {
     return (await this.fetchAllTextChannels()).filter(
       (v) => v instanceof discord.GuildTextChannel
-    );
+    ) as List<discord.GuildTextChannel>;
   }
-  async fetchStoreChannels(): ListPromise<discord.GuildStoreChannel> {
+  async fetchStoreChannels() {
     return (await this.fetchChannels()).filter(
       (v) => v instanceof discord.GuildStoreChannel
-    );
+    ) as List<discord.GuildStoreChannel>;
   }
-  async fetchVoiceChannels(): ListPromise<discord.GuildVoiceChannel> {
+  async fetchVoiceChannels() {
     return (await this.fetchAllVoiceChannels()).filter(
       (v) => v instanceof discord.GuildVoiceChannel
-    );
+    ) as List<discord.GuildVoiceChannel>;
   }
-  async fetchStageVoiceChannels(): ListPromise<discord.GuildStageVoiceChannel> {
+  async fetchStageVoiceChannels() {
     return (await this.fetchAllVoiceChannels()).filter(
       (v) => v instanceof discord.GuildStageVoiceChannel
-    );
+    ) as List<discord.GuildStageVoiceChannel>;
   }
   async fetchEmbed() {
     return this._isUnused();
@@ -495,7 +492,7 @@ export class Guild extends Structure {
     return this.iconUrlFormat();
   }
   iconUrlFormat(format?: string, query?: UrlQuery) {
-    return this.hashUrl(
+    return this.hashCdnUrl(
       DiscordEndpoints.CDN.GUILD_ICON.name,
       this.id,
       this.icon,
@@ -652,7 +649,7 @@ export class Guild extends Structure {
     return this.splashUrlFormat;
   }
   splashUrlFormat(format?: string, query?: UrlQuery) {
-    return this.hashUrl(
+    return this.hashCdnUrl(
       DiscordEndpoints.CDN.GUILD_SPLASH.name,
       this.id,
       this.splash,
@@ -669,7 +666,50 @@ export class Guild extends Structure {
   get vanityUrlCode() {
     return this.raw.vanityUrlCode;
   }
+  get verificationLevel(): number {
+    return this.raw.verificationLevel;
+  }
+  async fetchVoiceStates() {
+    let voiceStates = new List<discord.VoiceState>();
+    for await (let i of this.raw.iterVoiceStates()) {
+      voiceStates.add(i);
+    }
+    return voiceStates;
+  }
+  get welcomeScreen() {
+    return {
+      description: this.description,
+      welcomeChannels: new List<
+        discord.GuildTextChannel | discord.GuildNewsChannel
+      >(),
+    };
+  }
+  get widgetChannelId() {
+    return this.raw.widgetChannelId;
+  }
+  get widgetEnabled() {
+    return this.raw.widgetEnabled;
+  }
+  get widgetImageUrl() {
+    return this.widgetImageUrlFormat();
+  }
+  widgetImageUrlFormat(query: UrlQuery = {}) {
+    return addQuery(
+      DiscordEndpoints.Api.URL_STABLE +
+        DiscordEndpoints.Api.PATH +
+        replacePathParameters(DiscordEndpoints.Api.GUILD_WIDGET_PNG, {
+          guildId: this.id,
+        }),
+      query
+    );
+  }
+  get widgetUrl() {
+    return this.widgetUrlFormat();
+  }
+  widgetUrlFormat(options: RequestTypes.RouteWidget = {}) {
+    return (
+      DiscordEndpoints.Api.URL_STABLE +
+      DiscordEndpoints.RoutesQuery.WIDGET(this.id, options)
+    );
+  }
 }
-discord.Guild.prototype.beginPrune;
-Guild.prototype.bannerUrlFormat;
-Structures.Guild.prototype.verificationLevel;

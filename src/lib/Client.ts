@@ -19,7 +19,7 @@ export class Structure extends ClientMixin {
     }
     throw new Error("This method is unused");
   }
-  hashUrl(
+  hashCdnUrl(
     endpoint: string,
     id: string,
     hash?: string,

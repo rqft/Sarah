@@ -105,7 +105,7 @@ export class List<T> {
     return this.delete(this.lastIndex);
   }
   public add(item: T) {
-    this.set(this.lastIndex + 1, item);
+    return this.set(this.lastIndex + 1, item);
   }
   public addMany(...items: Array<T>) {
     items.forEach(this.add);

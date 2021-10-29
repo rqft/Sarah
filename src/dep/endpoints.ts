@@ -1,6 +1,37 @@
 import { ActivityActionTypes } from "detritus-client/lib/constants";
 import { ApiVersion } from "./globals";
+import { RequestTypes } from "./RequestTypes";
+export interface RouteParameters {
+  [key: string]: any;
+}
 
+export class Route {
+  method: string;
+  params: RouteParameters;
+  path: string;
+  urlPath: string;
+
+  constructor(method: string, path: string = "", params: RouteParameters = {}) {
+    this.method = method.toUpperCase();
+    this.path = path;
+    this.params = params;
+
+    this.urlPath = replacePathParameters(path, params);
+  }
+}
+
+export const PathReplacementRegexp = /:(\w+):?/g;
+export function replacePathParameters(
+  path: string,
+  parameters: RouteParameters = {}
+): string {
+  return path.replace(PathReplacementRegexp, (match: string, key: string) => {
+    if (key in parameters) {
+      return encodeURIComponent(String(parameters[key]));
+    }
+    return match;
+  });
+}
 export module DiscordEndpoints {
   export enum Urls {
     BLOG = "https://blog.discord.com/",
@@ -779,6 +810,25 @@ export module DiscordEndpoints {
     WEBHOOK_TOKEN_GITHUB: "/webhooks/:webhookId/:webhookToken/github",
     WEBHOOK_TOKEN_SLACK: "/webhooks/:webhookId/:webhookToken/slack",
   };
+  export const RoutesQuery = Object.freeze({
+    INVITE: (code: string, options: RequestTypes.RouteInvite = {}) => {
+      const query = new URLSearchParams();
+      if (options.username) {
+        query.set("username", options.username);
+      }
+      return `${Routes.INVITE(code)}?${query}`;
+    },
+    WIDGET: (guildId: string, options: RequestTypes.RouteWidget = {}) => {
+      const query = new URLSearchParams({ id: guildId });
+      if (options.theme) {
+        query.append("theme", options.theme);
+      }
+      if (options.username) {
+        query.append("username", options.username);
+      }
+      return `${Routes.WIDGET}?${query}`;
+    },
+  });
 }
 export module NotSoPylon {
   export enum NotSoHeaders {
