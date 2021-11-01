@@ -1,13 +1,11 @@
 import { DiscordEndpoints } from "../dep/endpoints";
+import { RequestTypes } from "../dep/RequestTypes";
 import { addQuery, getFormatFromHash, UrlQuery } from "../dep/utils";
+import { ChannelBase } from "./Channel";
+import { Guild } from "./Guild";
 
-export class ClientMixin {
+export class Structure {
   client: Client;
-  guild() {
-    return this.client.guild();
-  }
-}
-export class Structure extends ClientMixin {
   _isUnused(
     context?: discord.Message,
     options?: discord.Message.IOutgoingMessageOptions
@@ -35,24 +33,38 @@ export class Structure extends ClientMixin {
       query
     );
   }
-}
-export class Client {
-  get raw() {
-    return discord;
+  _keys: Set<string>;
+  merge(data?: object): void {
+    if (!data) {
+      return;
+    }
+    for (let i in data) {
+      if (i in this._keys) this[`_${i}`] = data[i];
+    }
   }
+}
+
+export class Client {
+  _ = discord;
   get userId() {
-    return this.raw.getBotId();
+    return this._.getBotId();
   }
   get guildId() {
-    return this.raw.getGuildId();
+    return this._.getGuildId();
   }
-  async guild() {
-    return this.raw.getGuild();
+  async fetchGuild() {
+    return new Guild(await this._.getGuild(this.guildId));
   }
-  async user() {
-    return this.raw.getUser(this.userId);
+  async fetchUserSelf() {
+    return this._.getBotUser();
   }
-  async member() {
-    return (await this.guild()).getMember(this.userId);
+  async fetchUser(userId: string) {
+    return this._.getUser(userId);
+  }
+  async fetchChannel(channelId: string) {
+    return new ChannelBase(await this._.getChannel(channelId));
+  }
+  async fetchInvite(code: string, options: RequestTypes.FetchInvite = {}) {
+    return this._.getInvite(code, options);
   }
 }
